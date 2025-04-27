@@ -33,6 +33,10 @@
 	<string>Need camera access for uploading profile picture</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Need photo library access for uploading profile picture</string>
+
+	<key>NSCameraUsageDescription</key>
+    <string>We need camera access to detect fatigue</string>
+
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>

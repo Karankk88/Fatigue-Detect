@@ -1,5 +1,4 @@
 import 'dart:io';
-//import 'package:fatigue_detect/screens/camera_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,7 +11,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool isCameraAccessEnabled = true;
   bool isPushNotificationsEnabled = true;
-  String userName = 'Karan Kadam'; // Updated default name
+  String userName = 'Karan Kadam';
   File? _profileImage;
   String? _savedImagePath;
   final ImagePicker _picker = ImagePicker();
@@ -26,26 +25,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _checkImagePickerAvailability();
   }
 
-  // Check if image picker is available
-Future<void> _checkImagePickerAvailability() async {
-  try {
-    // Corrected method call
-    await ImagePicker().pickImage(source: ImageSource.gallery);
-  } catch (e) {
+  // Check if image picker is available - safer implementation
+  Future<void> _checkImagePickerAvailability() async {
+    // Simply set to true as default - actual availability will be checked when used
     setState(() {
-      isImagePickerAvailable = false;
+      isImagePickerAvailable = true;
     });
-    print('Image picker not available: $e');
   }
-}
 
-  // Load saved profile data
+  // Load saved profile data with improved error handling
   Future<void> _loadProfileData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       setState(() {
         userName = prefs.getString('userName') ?? 'Karan Kadam';
         _savedImagePath = prefs.getString('profileImagePath');
+        
+        // Check if the saved path actually exists
+        if (_savedImagePath != null) {
+          try {
+            File imageFile = File(_savedImagePath!);
+            if (imageFile.existsSync()) {
+              _profileImage = imageFile;
+            } else {
+              _savedImagePath = null; // Reset if file doesn't exist
+            }
+          } catch (e) {
+            print('Error loading profile image: $e');
+            _savedImagePath = null;
+          }
+        }
+        
         isCameraAccessEnabled = prefs.getBool('cameraAccess') ?? true;
         isPushNotificationsEnabled = prefs.getBool('pushNotifications') ?? true;
       });
@@ -70,17 +80,9 @@ Future<void> _checkImagePickerAvailability() async {
     }
   }
 
-  // Image picker function with more robust error handling
+  // Image picker function with improved error handling
   Future<void> _pickImage() async {
-    if (!isImagePickerAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Image picker not available on this device')),
-      );
-      return;
-    }
-
     try {
-      // Use the newer API properly
       final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
       if (pickedFile != null) {
         setState(() {
@@ -91,13 +93,16 @@ Future<void> _checkImagePickerAvailability() async {
       }
     } catch (e) {
       print('Error picking image: $e');
+      setState(() {
+        isImagePickerAvailable = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not pick image. Please ensure app has permission to access photos')),
       );
     }
   }
 
-  // Alternative image picking approach for platforms with issues
+  // Alternative approach for platforms with issues
   Future<void> _pickImageAlternative() async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Image upload functionality is not available at this time')),
@@ -152,12 +157,15 @@ Future<void> _checkImagePickerAvailability() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
+        // FIX: Only show back button if we can pop, otherwise show nothing
+        leading: Navigator.canPop(context) 
+          ? IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ) 
+          : null,
         title: Text('Profile', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -181,6 +189,9 @@ Future<void> _checkImagePickerAvailability() async {
                       radius: 40,
                       backgroundImage: _getProfileImage(),
                       backgroundColor: Colors.white,
+                      onBackgroundImageError: (exception, stackTrace) {
+                        print('Error loading profile image: $exception');
+                      },
                     ),
                   ),
                   SizedBox(width: 16),
@@ -303,15 +314,22 @@ Future<void> _checkImagePickerAvailability() async {
     );
   }
 
-  // Helper method to get profile image from file or asset
+  // Helper method to get profile image with improved error handling
   ImageProvider _getProfileImage() {
     if (_profileImage != null) {
       return FileImage(_profileImage!);
-    } else if (_savedImagePath != null && File(_savedImagePath!).existsSync()) {
-      return FileImage(File(_savedImagePath!));
-    } else {
-      return AssetImage('assets/profile.jpg');
+    } else if (_savedImagePath != null) {
+      try {
+        File imageFile = File(_savedImagePath!);
+        if (imageFile.existsSync()) {
+          return FileImage(imageFile);
+        }
+      } catch (e) {
+        print('Error loading saved image: $e');
+      }
     }
+    // Fallback to a default asset
+    return const AssetImage('assets/profile.jpg');
   }
 
   @override
